@@ -52,6 +52,11 @@ export function ProcessingView({ project }: { project: ProjectDetailDto }) {
               <span className="w-12 text-right text-sm font-semibold tabular">{Math.round(project.progress * 100)}%</span>
             </div>
             <p className="mt-3 min-h-5 text-sm text-muted">{project.statusMessage}</p>
+            {project.status === "queued" && Date.now() - new Date(project.updatedAt).getTime() > 3 * 60_000 && (
+              <p className="mt-2 rounded-md bg-warning/10 px-3 py-2 text-xs text-warning">
+                No processing worker has picked this up yet. If this persists, check that the worker service is running (see /api/health).
+              </p>
+            )}
           </div>
         </div>
         <div className="grid grid-cols-2 gap-4 p-5 text-sm sm:grid-cols-4">

@@ -164,6 +164,7 @@ npm run dev:worker                                # needs ffmpeg + yt-dlp on PAT
 Checks:
 
 ```bash
+npm run build                              # production build of the web app
 npm run typecheck
 npm test                                   # unit + FFmpeg media tests
 E2E=1 npx vitest run e2e -w @longcut/worker   # drains the real queue; AI APIs replaced by test doubles
@@ -171,20 +172,72 @@ E2E=1 npx vitest run e2e -w @longcut/worker   # drains the real queue; AI APIs r
 
 ---
 
-## 5. Netlify deployment (web app)
+## 5. What runs where
 
-1. Push the repo and **Add new site → Import from Git**. `netlify.toml` sets the build command to
-   `npm run build:web`, the publish directory to `apps/web/.next`, and the Next.js runtime plugin. If
-   Netlify's monorepo detection asks for a package directory, choose `apps/web`.
-2. Under **Site configuration → Environment variables**, add the web variables from §3. Use a *pooled*
-   Postgres URL (Supabase pooler on port 6543, or Neon's `-pooler` host) and `DATABASE_POOL_MAX=3`.
-3. Deploy. Route handlers only do light work: auth, presigning, DB reads/writes and enqueueing. They
-   finish in milliseconds, well inside Netlify Function limits. **No video processing runs on Netlify.**
-4. Add your Netlify domain to the storage bucket's CORS rules (see §7).
+| Component | Hosting | Why |
+|---|---|---|
+| Next.js UI + API routes (`apps/web`) | **Netlify** | Pages, auth, presigned upload URLs, DB reads/writes, enqueueing jobs, status polling. Every request finishes in milliseconds. |
+| **Processing worker** (`apps/worker`) | **Separate container host** (Fly.io, Railway, Render, VPS, GPU box) | FFmpeg, yt-dlp downloads, audio extraction, chunked transcription, AI analysis, caption generation, rendering/export. These run for minutes to hours and need large temp disk. **They must not run on Netlify.** |
+| Postgres (data + job queue) | Supabase / Neon / Railway | Shared by the web app and the worker |
+| Video/audio/export files | Cloudflare R2 / AWS S3 / Supabase Storage (S3 API) | The browser uploads directly; the worker reads and writes |
+| Speech-to-text | Deepgram / OpenAI Whisper / Groq, or self-hosted faster-whisper inside the worker | Called only by the worker |
+| LLM (Claude by default) | Anthropic API | Called only by the worker |
+
+Without a running worker, uploads and project creation work, but projects stay **Queued**. The UI then
+warns that no worker has picked the job up, and `/api/health` reports it.
 
 ---
 
-## 6. Worker deployment
+## 6. Deploy: GitHub → Netlify (web app)
+
+### 6.1 Push to GitHub
+
+```bash
+git clone <this repo> longcut && cd longcut      # or use your existing clone
+npm install                                        # uses package-lock.json
+npm run build                                      # verifies the production build (needs no secrets)
+git remote set-url origin https://github.com/<you>/<repo>.git   # if moving to your own repo
+git push -u origin main
+```
+
+`npm run build` builds the Next.js app and needs **no** environment variables, so Netlify builds never fail
+because a secret is missing. Secrets are only read at runtime.
+
+### 6.2 Create the Netlify site
+
+1. Netlify → **Add new project → Import an existing project → GitHub**, then pick the repository.
+2. Netlify detects the monorepo and asks which project to deploy. Choose **`@longcut/web` (apps/web)**.
+   Leave **Base directory** empty (repository root). `netlify.toml` provides:
+   - Build command: `npm run build:web`
+   - Publish directory: `apps/web/.next`
+   - Plugin: `@netlify/plugin-nextjs` (Next.js runtime: server functions + edge middleware)
+   - `NODE_VERSION = 22`
+3. **Environment variables** (Project configuration → Environment variables), scope *Functions* + *Builds*:
+
+   | Variable | Value |
+   |---|---|
+   | `DATABASE_URL` | Pooled Postgres URL (Supabase pooler `…pooler.supabase.com:6543/postgres?sslmode=require`, or Neon `-pooler` host) |
+   | `DATABASE_POOL_MAX` | `3` |
+   | `AUTH_SECRET` | `openssl rand -base64 48` |
+   | `APP_ENCRYPTION_KEY` | `openssl rand -base64 32` (**same value on the worker**) |
+   | `STORAGE_PROVIDER` | `r2` (label shown in Settings) |
+   | `STORAGE_BUCKET` / `STORAGE_ENDPOINT` / `STORAGE_REGION` | e.g. `longcut` / `https://<account>.r2.cloudflarestorage.com` / `auto` |
+   | `STORAGE_ACCESS_KEY_ID` / `STORAGE_SECRET_ACCESS_KEY` | Storage API token |
+   | `STORAGE_FORCE_PATH_STYLE` | `false` for R2/S3, `true` for Supabase Storage/MinIO |
+   | optional `YOUTUBE_API_KEY`, `ALLOW_SIGNUPS`, `MAX_UPLOAD_BYTES` | |
+
+   AI and speech keys are **not** needed on Netlify. Only the worker calls those APIs.
+4. **Deploy.** Then:
+   - run migrations once from your machine: `DATABASE_URL=<direct url> npm run db:migrate` (or let the
+     worker do it with `RUN_MIGRATIONS=true`);
+   - add the Netlify URL to the bucket CORS rules (§8);
+   - open `https://<site>.netlify.app/api/health`. It returns `{"ok":true,…}` when env, database,
+     storage and the worker queue are all healthy, and otherwise names the failing check (never secret values).
+5. Every push to `main` redeploys; pull requests get deploy previews.
+
+---
+
+## 7. Worker deployment (separate service)
 
 The worker is one Docker image (`apps/worker/Dockerfile`, built from the repo root). It contains Node,
 FFmpeg (with libass), yt-dlp, and fonts (Inter, Montserrat, Roboto, Noto incl. Devanagari/Arabic, Liberation).
@@ -218,12 +271,21 @@ Anything unfinished is resumed by another worker from its checkpoints once the l
 
 ---
 
-## 7. Database & storage setup
+## 8. Database & storage setup
 
 **Postgres** (Supabase, Neon, Railway, RDS…): create a database, then run `npm run db:migrate` with its
 `DATABASE_URL`, or let the worker migrate on boot with `RUN_MIGRATIONS=true`. Tables: `users`,
 `user_settings`, `projects`, `transcripts`, `transcript_chunks`, `analyses`, `clips`,
 `sentence_translations`, `exports`, `jobs`.
+
+**Supabase (database):** use the *Session/Transaction pooler* URL for Netlify and the direct URL for
+the worker and migrations. Add `?sslmode=require`.
+
+**Supabase Storage (alternative to R2):** enable the S3 protocol (Storage → Settings), create S3 access
+keys and a bucket, then set `STORAGE_ENDPOINT=https://<project-ref>.supabase.co/storage/v1/s3`,
+`STORAGE_REGION=<project region>` and `STORAGE_FORCE_PATH_STYLE=true`. Check the bucket's maximum
+file-size limit, which must allow your largest sources. R2 is recommended for 10-hour sources because it
+has no egress fees on previews and downloads.
 
 **Cloudflare R2** (or S3):
 
@@ -253,7 +315,7 @@ through short-lived presigned URLs, which are generated after an ownership check
 
 ---
 
-## 8. API
+## 9. API
 
 All routes require the session cookie and only return the caller's own resources (unknown or foreign IDs → 404).
 
@@ -276,17 +338,20 @@ All routes require the session cookie and only return the caller's own resources
 | `POST /api/clips/:id/render` · `/export` | Render with defaults / with explicit export options |
 | `POST /api/exports/batch`, `GET /api/exports`, `GET /api/exports/:id/status`, `GET /api/exports/:id/download` | Batch exports, history, status, signed download |
 | `GET /api/jobs` · `GET/PUT /api/settings` | Processing page · settings (keys are write-only) |
+| `GET /api/health` (public) | Deployment check: env, database/migrations, storage, worker queue (no secrets) |
 
 ---
 
-## 9. Known limitations
+## 10. Known limitations
 
 - **Verified locally, not on live providers.** In this build environment the full pipeline ran end to end
   against real Postgres, S3-compatible storage (moto), FFmpeg and the real web API and job runner. Only
   Deepgram/Whisper and Claude were replaced by test doubles (no API keys were available). Prompt quality
   on real 5–10 hour content should be reviewed on real content before launch.
-- The Netlify config (`netlify.toml`) and the worker Dockerfile follow the platforms' documented monorepo
-  and Next.js setups but have not been deployed from here.
+- The Netlify build was verified with `netlify build --filter @longcut/web` on a fresh clone: build
+  command, Next.js runtime plugin and server-function bundling all succeed. The final edge-function
+  packaging step downloads Deno, which the build sandbox's network blocked. Netlify's build image includes
+  it. The worker Dockerfile hasn't been built here (no Docker daemon available).
 - Speaker labels come from per-chunk diarization (Deepgram), so speaker numbers can change between
   10-minute chunks.
 - The browser preview plays MP4/WebM directly. Other formats (MKV, AVI, HEVC, ProRes, >1080p) play
@@ -301,7 +366,7 @@ All routes require the session cookie and only return the caller's own resources
   translated words don't map 1:1 to spoken words.
 - AI-generated thumbnails are prompts only. No image model is wired in.
 
-## 10. Recommended next steps
+## 11. Recommended next steps
 
 1. Run a prompt-quality evaluation on real 3–10 hour streams, and tune the section/candidate/refine
    prompts and strategy weights against editor judgments.

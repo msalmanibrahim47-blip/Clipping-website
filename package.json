@@ -1,12 +1,14 @@
 {
   "name": "longcut",
   "private": true,
-  "description": "LongCut — long-form video intelligence and clipping workstation",
+  "description": "LongCut \u2014 long-form video intelligence and clipping workstation",
   "workspaces": [
     "packages/*",
     "apps/*"
   ],
   "scripts": {
+    "build": "npm run build:web",
+    "start": "npm run start -w @longcut/web",
     "dev:web": "npm run dev -w @longcut/web",
     "dev:worker": "npm run dev -w @longcut/worker",
     "build:web": "npm run build -w @longcut/web",

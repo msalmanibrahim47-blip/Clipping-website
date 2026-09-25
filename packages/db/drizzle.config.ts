@@ -4,5 +4,6 @@ export default defineConfig({
   schema: "./src/schema.ts",
   out: "./migrations",
   dialect: "postgresql",
-  dbCredentials: { url: process.env.DATABASE_URL ?? "postgres://localhost:5432/longcut" },
+  // Only used by `drizzle-kit` commands; set DATABASE_URL in your shell or .env.
+  dbCredentials: { url: process.env.DATABASE_URL ?? "" },
 });
