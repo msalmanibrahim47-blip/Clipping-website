@@ -134,8 +134,7 @@ CREATE TABLE IF NOT EXISTS "sentence_translations" (
 	"project_id" uuid NOT NULL,
 	"mode" text NOT NULL,
 	"sentence_idx" integer NOT NULL,
-	"text" text NOT NULL,
-	CONSTRAINT "sentence_translations_project_id_mode_sentence_idx_pk" PRIMARY KEY("project_id","mode","sentence_idx")
+	"text" text NOT NULL
 );
 ALTER TABLE public."sentence_translations" ENABLE ROW LEVEL SECURITY;
 
@@ -147,8 +146,7 @@ CREATE TABLE IF NOT EXISTS "transcript_chunks" (
 	"provider" text NOT NULL,
 	"language" text,
 	"words" jsonb NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "transcript_chunks_project_id_index_pk" PRIMARY KEY("project_id","index")
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 ALTER TABLE public."transcript_chunks" ENABLE ROW LEVEL SECURITY;
 
@@ -180,10 +178,22 @@ CREATE TABLE IF NOT EXISTS "users" (
 	"email" text NOT NULL,
 	"name" text,
 	"password_hash" text NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "users_email_unique" UNIQUE("email")
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 ALTER TABLE public."users" ENABLE ROW LEVEL SECURITY;
+
+-- Primary keys / unique constraints (kept outside CREATE TABLE on purpose).
+DO $$ BEGIN
+  ALTER TABLE "sentence_translations" ADD CONSTRAINT "sentence_translations_project_id_mode_sentence_idx_pk" PRIMARY KEY("project_id","mode","sentence_idx");
+EXCEPTION WHEN duplicate_object OR duplicate_table OR invalid_table_definition THEN NULL; END $$;
+
+DO $$ BEGIN
+  ALTER TABLE "transcript_chunks" ADD CONSTRAINT "transcript_chunks_project_id_index_pk" PRIMARY KEY("project_id","index");
+EXCEPTION WHEN duplicate_object OR duplicate_table OR invalid_table_definition THEN NULL; END $$;
+
+DO $$ BEGIN
+  ALTER TABLE "users" ADD CONSTRAINT "users_email_unique" UNIQUE("email");
+EXCEPTION WHEN duplicate_object OR duplicate_table OR invalid_table_definition THEN NULL; END $$;
 
 DO $$ BEGIN
   ALTER TABLE "analyses" ADD CONSTRAINT "analyses_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE no action;
