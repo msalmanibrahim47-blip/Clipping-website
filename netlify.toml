@@ -1,0 +1,13 @@
+# Netlify hosts ONLY the Next.js web app (UI + lightweight API routes: auth, presigned
+# upload URLs, DB reads/writes, job enqueueing). No video bytes and no FFmpeg/transcription
+# ever run in Netlify Functions — that is the worker's job (apps/worker).
+[build]
+  command = "npm run build:web"
+  publish = "apps/web/.next"
+
+[build.environment]
+  NODE_VERSION = "22"
+  NEXT_TELEMETRY_DISABLED = "1"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"

@@ -1,0 +1,71 @@
+@import "tailwindcss";
+
+@theme {
+  --color-bg: #08090b;
+  --color-surface: #0e1014;
+  --color-surface-2: #14171c;
+  --color-surface-3: #1b1f26;
+  --color-line: #232830;
+  --color-line-strong: #2f3540;
+  --color-fg: #eceef2;
+  --color-muted: #8b919c;
+  --color-subtle: #5d636e;
+  --color-primary: #7c6cff;
+  --color-primary-strong: #6a58ff;
+  --color-primary-soft: rgba(124, 108, 255, 0.14);
+  --color-gold: #f3c14f;
+  --color-gold-soft: rgba(243, 193, 79, 0.12);
+  --color-success: #34d399;
+  --color-warning: #fbbf24;
+  --color-danger: #f87171;
+  --color-info: #60a5fa;
+
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --radius-lg: 0.75rem;
+  --radius-md: 0.5rem;
+}
+
+html,
+body {
+  background: var(--color-bg);
+  color: var(--color-fg);
+  font-family: var(--font-sans);
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  -webkit-font-smoothing: antialiased;
+  color-scheme: dark;
+}
+
+* {
+  border-color: var(--color-line);
+}
+
+::selection {
+  background: rgba(124, 108, 255, 0.35);
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Thin, unobtrusive scrollbars for dense panels. */
+.scroll-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-line-strong) transparent;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.progress-active {
+  background-image: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.18), transparent);
+  background-size: 200% 100%;
+  animation: shimmer 1.8s linear infinite;
+}

@@ -1,0 +1,26 @@
+{
+  "name": "longcut",
+  "private": true,
+  "description": "LongCut — long-form video intelligence and clipping workstation",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev:web": "npm run dev -w @longcut/web",
+    "dev:worker": "npm run dev -w @longcut/worker",
+    "build:web": "npm run build -w @longcut/web",
+    "build:worker": "npm run build -w @longcut/worker",
+    "db:generate": "npm run generate -w @longcut/db",
+    "db:migrate": "npm run migrate -w @longcut/db",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present"
+  },
+  "engines": {
+    "node": ">=20.9"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3",
+    "@types/node": "^22.10.0"
+  }
+}

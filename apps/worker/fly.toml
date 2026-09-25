@@ -1,0 +1,35 @@
+# Fly.io deployment for the processing worker.
+#   fly launch --no-deploy --config apps/worker/fly.toml --dockerfile apps/worker/Dockerfile
+#   fly volumes create longcut_tmp --size 100 --region iad
+#   fly secrets set DATABASE_URL=... STORAGE_BUCKET=... ANTHROPIC_API_KEY=... (see .env.example)
+#   fly deploy --config apps/worker/fly.toml --dockerfile apps/worker/Dockerfile .
+app = "longcut-worker"
+primary_region = "iad"
+kill_signal = "SIGTERM"
+kill_timeout = "30s"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  RUN_MIGRATIONS = "true"
+  WORKER_ROLES = "heavy,light"
+  WORKER_HEAVY_CONCURRENCY = "1"
+  WORKER_LIGHT_CONCURRENCY = "4"
+  WORKER_TMP_DIR = "/data/tmp"
+
+# Large temp disk for YouTube downloads and renders.
+[[mounts]]
+  source = "longcut_tmp"
+  destination = "/data"
+
+[[vm]]
+  size = "performance-4x"
+  memory = "8gb"
+
+[checks.health]
+  type = "http"
+  port = 8080
+  path = "/"
+  interval = "30s"
+  timeout = "5s"
