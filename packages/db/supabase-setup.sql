@@ -1,16 +1,16 @@
--- LongCut database setup for Supabase SQL Editor.
--- Paste everything and click Run. Safe to run once on an empty database.
+-- LongCut database setup for the Supabase SQL Editor.
+-- Paste everything and click Run. Safe to run more than once.
 
-begin;
-CREATE TABLE "analyses" (
+CREATE TABLE IF NOT EXISTS "analyses" (
 	"project_id" uuid PRIMARY KEY NOT NULL,
 	"sections" jsonb NOT NULL,
 	"overview" text,
 	"model" text,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
---> statement-breakpoint
-CREATE TABLE "clips" (
+ALTER TABLE public."analyses" ENABLE ROW LEVEL SECURITY;
+
+CREATE TABLE IF NOT EXISTS "clips" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"project_id" uuid NOT NULL,
 	"origin" text DEFAULT 'ai' NOT NULL,
@@ -39,8 +39,9 @@ CREATE TABLE "clips" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
---> statement-breakpoint
-CREATE TABLE "exports" (
+ALTER TABLE public."clips" ENABLE ROW LEVEL SECURITY;
+
+CREATE TABLE IF NOT EXISTS "exports" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"clip_id" uuid NOT NULL,
 	"project_id" uuid NOT NULL,
@@ -65,8 +66,9 @@ CREATE TABLE "exports" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
---> statement-breakpoint
-CREATE TABLE "jobs" (
+ALTER TABLE public."exports" ENABLE ROW LEVEL SECURITY;
+
+CREATE TABLE IF NOT EXISTS "jobs" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"type" text NOT NULL,
 	"payload" jsonb DEFAULT '{}'::jsonb NOT NULL,
@@ -91,8 +93,9 @@ CREATE TABLE "jobs" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
---> statement-breakpoint
-CREATE TABLE "projects" (
+ALTER TABLE public."jobs" ENABLE ROW LEVEL SECURITY;
+
+CREATE TABLE IF NOT EXISTS "projects" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"user_id" uuid NOT NULL,
 	"title" text NOT NULL,
@@ -125,16 +128,18 @@ CREATE TABLE "projects" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
---> statement-breakpoint
-CREATE TABLE "sentence_translations" (
+ALTER TABLE public."projects" ENABLE ROW LEVEL SECURITY;
+
+CREATE TABLE IF NOT EXISTS "sentence_translations" (
 	"project_id" uuid NOT NULL,
 	"mode" text NOT NULL,
 	"sentence_idx" integer NOT NULL,
 	"text" text NOT NULL,
 	CONSTRAINT "sentence_translations_project_id_mode_sentence_idx_pk" PRIMARY KEY("project_id","mode","sentence_idx")
 );
---> statement-breakpoint
-CREATE TABLE "transcript_chunks" (
+ALTER TABLE public."sentence_translations" ENABLE ROW LEVEL SECURITY;
+
+CREATE TABLE IF NOT EXISTS "transcript_chunks" (
 	"project_id" uuid NOT NULL,
 	"index" integer NOT NULL,
 	"start" double precision NOT NULL,
@@ -145,8 +150,9 @@ CREATE TABLE "transcript_chunks" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "transcript_chunks_project_id_index_pk" PRIMARY KEY("project_id","index")
 );
---> statement-breakpoint
-CREATE TABLE "transcripts" (
+ALTER TABLE public."transcript_chunks" ENABLE ROW LEVEL SECURITY;
+
+CREATE TABLE IF NOT EXISTS "transcripts" (
 	"project_id" uuid PRIMARY KEY NOT NULL,
 	"text" text NOT NULL,
 	"segments" jsonb NOT NULL,
@@ -156,8 +162,9 @@ CREATE TABLE "transcripts" (
 	"speaker_count" integer,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
---> statement-breakpoint
-CREATE TABLE "user_settings" (
+ALTER TABLE public."transcripts" ENABLE ROW LEVEL SECURITY;
+
+CREATE TABLE IF NOT EXISTS "user_settings" (
 	"user_id" uuid PRIMARY KEY NOT NULL,
 	"defaults" jsonb DEFAULT '{}'::jsonb NOT NULL,
 	"caption_style" jsonb,
@@ -166,8 +173,9 @@ CREATE TABLE "user_settings" (
 	"encrypted_keys" text,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
---> statement-breakpoint
-CREATE TABLE "users" (
+ALTER TABLE public."user_settings" ENABLE ROW LEVEL SECURITY;
+
+CREATE TABLE IF NOT EXISTS "users" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"email" text NOT NULL,
 	"name" text,
@@ -175,42 +183,72 @@ CREATE TABLE "users" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "users_email_unique" UNIQUE("email")
 );
---> statement-breakpoint
-ALTER TABLE "analyses" ADD CONSTRAINT "analyses_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "clips" ADD CONSTRAINT "clips_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "exports" ADD CONSTRAINT "exports_clip_id_clips_id_fk" FOREIGN KEY ("clip_id") REFERENCES "public"."clips"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "exports" ADD CONSTRAINT "exports_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "exports" ADD CONSTRAINT "exports_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "jobs" ADD CONSTRAINT "jobs_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "jobs" ADD CONSTRAINT "jobs_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "projects" ADD CONSTRAINT "projects_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "sentence_translations" ADD CONSTRAINT "sentence_translations_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "transcript_chunks" ADD CONSTRAINT "transcript_chunks_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "transcripts" ADD CONSTRAINT "transcripts_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "user_settings" ADD CONSTRAINT "user_settings_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-CREATE INDEX "clips_project_idx" ON "clips" USING btree ("project_id","rank");--> statement-breakpoint
-CREATE INDEX "exports_user_idx" ON "exports" USING btree ("user_id","created_at");--> statement-breakpoint
-CREATE INDEX "exports_clip_idx" ON "exports" USING btree ("clip_id");--> statement-breakpoint
-CREATE INDEX "jobs_claim_idx" ON "jobs" USING btree ("status","run_at","priority");--> statement-breakpoint
-CREATE INDEX "jobs_project_idx" ON "jobs" USING btree ("project_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "jobs_dedupe_active_idx" ON "jobs" USING btree ("dedupe_key") WHERE "jobs"."status" in ('queued','running') and "jobs"."dedupe_key" is not null;--> statement-breakpoint
-CREATE INDEX "projects_user_idx" ON "projects" USING btree ("user_id","created_at");
+ALTER TABLE public."users" ENABLE ROW LEVEL SECURITY;
 
--- Record the migration so the worker's RUN_MIGRATIONS=true won't try to apply it again.
-create schema if not exists drizzle;
-create table if not exists drizzle.__drizzle_migrations (id serial primary key, hash text not null, created_at bigint);
-insert into drizzle.__drizzle_migrations (hash, created_at) values ('ccd96f02e1488613b83d324144374e534da2663a7c4675aaa60c03008f52ade6', 1790323620303);
--- Supabase exposes the public schema via its REST API (anon key). This app never uses that API,
--- so lock it down: RLS on with no policies = no access for anon/authenticated roles.
--- The app connects as the table owner (postgres), which is unaffected.
-alter table public.users enable row level security;
-alter table public.user_settings enable row level security;
-alter table public.projects enable row level security;
-alter table public.transcripts enable row level security;
-alter table public.transcript_chunks enable row level security;
-alter table public.analyses enable row level security;
-alter table public.clips enable row level security;
-alter table public.sentence_translations enable row level security;
-alter table public.exports enable row level security;
-alter table public.jobs enable row level security;
-commit;
+DO $$ BEGIN
+  ALTER TABLE "analyses" ADD CONSTRAINT "analyses_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  ALTER TABLE "clips" ADD CONSTRAINT "clips_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  ALTER TABLE "exports" ADD CONSTRAINT "exports_clip_id_clips_id_fk" FOREIGN KEY ("clip_id") REFERENCES "public"."clips"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  ALTER TABLE "exports" ADD CONSTRAINT "exports_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  ALTER TABLE "exports" ADD CONSTRAINT "exports_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  ALTER TABLE "jobs" ADD CONSTRAINT "jobs_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  ALTER TABLE "jobs" ADD CONSTRAINT "jobs_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  ALTER TABLE "projects" ADD CONSTRAINT "projects_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  ALTER TABLE "sentence_translations" ADD CONSTRAINT "sentence_translations_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  ALTER TABLE "transcript_chunks" ADD CONSTRAINT "transcript_chunks_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  ALTER TABLE "transcripts" ADD CONSTRAINT "transcripts_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  ALTER TABLE "user_settings" ADD CONSTRAINT "user_settings_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+CREATE INDEX IF NOT EXISTS "clips_project_idx" ON "clips" USING btree ("project_id","rank");
+
+CREATE INDEX IF NOT EXISTS "exports_user_idx" ON "exports" USING btree ("user_id","created_at");
+
+CREATE INDEX IF NOT EXISTS "exports_clip_idx" ON "exports" USING btree ("clip_id");
+
+CREATE INDEX IF NOT EXISTS "jobs_claim_idx" ON "jobs" USING btree ("status","run_at","priority");
+
+CREATE INDEX IF NOT EXISTS "jobs_project_idx" ON "jobs" USING btree ("project_id");
+
+CREATE UNIQUE INDEX IF NOT EXISTS "jobs_dedupe_active_idx" ON "jobs" USING btree ("dedupe_key") WHERE "jobs"."status" in ('queued','running') and "jobs"."dedupe_key" is not null;
+
+CREATE INDEX IF NOT EXISTS "projects_user_idx" ON "projects" USING btree ("user_id","created_at");
+
+-- Record the migration so the worker's RUN_MIGRATIONS=true won't re-apply it.
+CREATE SCHEMA IF NOT EXISTS drizzle;
+CREATE TABLE IF NOT EXISTS drizzle.__drizzle_migrations (id serial PRIMARY KEY, hash text NOT NULL, created_at bigint);
+INSERT INTO drizzle.__drizzle_migrations (hash, created_at) SELECT 'ccd96f02e1488613b83d324144374e534da2663a7c4675aaa60c03008f52ade6', 1790323620303
+  WHERE NOT EXISTS (SELECT 1 FROM drizzle.__drizzle_migrations WHERE created_at = 1790323620303);
